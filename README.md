@@ -1,5 +1,5 @@
 # How to use LibOTE with Silent OT on Ubuntu
-‘’‘shell
+```shell
 git clone https://github.com/osu-crypto/libOTe.git
 cd libOTE
 mkdir -p out/build/linux
@@ -7,10 +7,10 @@ cmake -S . -B out/build/linux -DENABLE_ASAN=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo
 cmake --build out/build/linux 
 su (enter your password)
 cmake --install out/build/linux 
-’‘’
+```
 
 # Call SilentOT
-‘’‘shell
+```shell
 git clone https://github.com/ShallMate/SilentOT.git
 cd SilentOT
 mkdir build
@@ -18,4 +18,4 @@ cd build
 cmake ..
 make
 ./main
-‘’‘
+```
