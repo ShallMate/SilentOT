@@ -1,3 +1,4 @@
+
 #include <libOTe/TwoChooseOne/Silent/SilentOtExtReceiver.h>
 #include <libOTe/TwoChooseOne/Silent/SilentOtExtSender.h>
 #include <iomanip>
@@ -8,16 +9,66 @@
 #include <libOTe/Tools/LDPC/Util.h>
 #include <coproto/Socket/BufferingSocket.h>
 #include <libOTe_Tests/Common.h>
+#include <cryptoTools/Common/TestCollection.h>
 
 using namespace osuCrypto;
 using namespace std;
 using namespace tests_libOTe;
 
-
 enum class Role{
         Sender,
         Receiver
 };
+
+namespace osuCrypto{
+
+using ProtocolFunc = std::function<void(Role, int, int, std::string, std::string, CLP&)>;
+
+
+
+inline bool runIf(ProtocolFunc protocol, CLP & cmd, std::vector<std::string> tag,
+                      std::vector<std::string> tag2 = std::vector<std::string>())
+    {
+        auto n = cmd.isSet("nn")
+            ? (1 << cmd.get<int>("nn"))
+            : cmd.getOr("n", 0);
+
+        auto t = cmd.getOr("t", 1);
+        auto ip = cmd.getOr<std::string>("ip", "localhost:1212");
+
+        if (!cmd.isSet(tag))
+            return false;
+
+        if (!tag2.empty() && !cmd.isSet(tag2))
+            return false;
+
+        if (cmd.hasValue("r"))
+        {
+            auto role = cmd.get<int>("r") ? Role::Sender : Role::Receiver;
+            protocol(role, n, t, ip, tag.back(), cmd);
+        }
+        else
+        {
+            auto thrd = std::thread([&] {
+                try { protocol(Role::Sender, n, t, ip, tag.back(), cmd); }
+                catch (std::exception& e)
+                {
+                    lout << e.what() << std::endl;
+                }
+                });
+
+            try { protocol(Role::Receiver, n, t, ip, tag.back(), cmd); }
+            catch (std::exception& e)
+            {
+                lout << e.what() << std::endl;
+            }
+            thrd.join();
+        }
+
+        return true;
+    }
+
+}
 
 static const std::vector<std::string>
 Silent{ "s", "Silent" };
@@ -263,13 +314,10 @@ void fakeBase(u64 n,u64 s,u64 threads,PRNG& prng,SilentOtExtReceiver& recver, Si
     }
 
 int main(int argc, char** argv){
-	CLP cmd;
+    CLP cmd;
 	cmd.parse(argc, argv);
-    //bool flagSet = false;
-	//flagSet |= runIf(Silent_example, cmd, Silent);
-    ///cout<<flagSet<<endl;
     auto sockets = cp::LocalAsyncSocket::makePair();
-    u64 n = cmd.getOr("n", 10000000);
+    u64 n = cmd.getOr("n", 1000000);
     cout<<"n = "<<n<<endl;
     bool verbose = cmd.getOr("v", 0) > 1;
     cout<<"verbose = "<<verbose<<endl;
@@ -278,7 +326,7 @@ int main(int argc, char** argv){
     u64 s = cmd.getOr("s", 2);
     cout<<"s = "<<s<<endl;
     PRNG prng(toBlock(cmd.getOr("seed", 0)));
-    PRNG prng1(toBlock(cmd.getOr("seed1", 1)));
+    //PRNG prng1(toBlock(cmd.getOr("seed1", 1)));
     SilentOtExtReceiver recver;
     recver.mMultType = MultType::slv5;
     recver.mNumThreads = threads;
@@ -290,15 +338,21 @@ int main(int argc, char** argv){
     fakeBase(n, s, threads, prng, recver, sender);
     //setBaseOts(sender, recv);
     cout<<"fakeBase secessful"<<endl;
+
     auto type = OTType::Random;
     std::vector<block> messages2(n);
     BitVector choice(n);
-    std::vector<std::array<block,2>> messages(n);
     cout<<"set chooses"<<endl;
+
+    //cout<<choice<<endl;
+    std::vector<std::array<block,2>> messages(n);
+    
     auto p0 = sender.silentSend(messages, prng, sockets[0]);
     cout<<"silentSend"<<endl;
+
     auto p1 = recver.silentReceive(choice, messages2, prng, sockets[1], type);
     cout<<"silentReceive"<<endl;
+
     eval(p0, p1);
     cout<<"eval"<<endl;
     checkRandom(messages2, messages, choice, n, verbose);
@@ -328,4 +382,12 @@ int main(int argc, char** argv){
     return 0;
 }
 
-
+/*
+int main(int argc, char** argv){
+    CLP cmd;
+	cmd.parse(argc, argv);
+	bool flagSet = false;
+	flagSet |= runIf(Silent_example, cmd, Silent);
+    return 0;
+}
+*/
